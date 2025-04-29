@@ -3,6 +3,7 @@ using AuctionService.Dtos;
 using AuctionService.Entities;
 using AuctionService.RequestHelpers;
 using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,16 +28,16 @@ public class AuctionController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<AuctionDto>>> GetAuctions()
+    public async Task<ActionResult<List<AuctionDto>>> GetAllAuctions(string date)
     {
-        _logger.LogInformation("GetAuctions called");
+        var query = _auctionContext.Auctions.OrderBy(x => x.Item.Make).AsQueryable();
 
-        var auctions = await _auctionContext.Auctions
-            .Include(x => x.Item)
-            .OrderBy(x => x.Item.Make)
-            .ToListAsync();
+        if (!string.IsNullOrEmpty(date))
+        {
+            query = query.Where(x => x.UpdateddAt.CompareTo(DateTime.Parse(date).ToUniversalTime()) > 0);
+        }
 
-        return Ok(_mapper.Map<List<AuctionDto>>(auctions));
+        return await query.ProjectTo<AuctionDto>(_mapper.ConfigurationProvider).ToListAsync();
     }
 
     [HttpPost]
@@ -74,7 +75,7 @@ public class AuctionController : ControllerBase
         var foundAuction = await _auctionContext.Auctions
             .Include(x => x.Item)
             .FirstOrDefaultAsync(x => x.Id == id);
-        
+
         _logger.LogInformation("The Color test is " + updateAuction.Color);
 
         if (foundAuction is null) return NotFound();
@@ -97,13 +98,13 @@ public class AuctionController : ControllerBase
         var foundAuction = await _auctionContext.Auctions
             .Include(x => x.Item)
             .FirstOrDefaultAsync(x => x.Id == id);
-        
+
         if (foundAuction is null) return NotFound();
-         _auctionContext.Auctions.Remove(foundAuction);
+        _auctionContext.Auctions.Remove(foundAuction);
 
-         var result = await _auctionContext.SaveChangesAsync() > 0;
+        var result = await _auctionContext.SaveChangesAsync() > 0;
 
-         if (!result) return BadRequest();
-         return Ok();
+        if (!result) return BadRequest();
+        return Ok();
     }
 }
